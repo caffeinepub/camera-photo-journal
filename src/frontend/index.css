@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Cabinet Grotesk (display) ─────────────────────────────────────────── */
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/assets/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── General Sans (body) ────────────────────────────────────────────────── */
+@font-face {
+  font-family: "General Sans";
+  src: url("/assets/fonts/GeneralSans-Variable.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* ── Core palette (dark-only app) ─────────────────────────────────── */
+    /* Near-black backgrounds */
+    --background:     0.09 0.005 270;
+    --foreground:     0.94 0.008 80;
+
+    /* Cards / surfaces */
+    --card:           0.13 0.007 270;
+    --card-foreground: 0.94 0.008 80;
+
+    /* Popovers */
+    --popover:        0.16 0.008 270;
+    --popover-foreground: 0.94 0.008 80;
+
+    /* Primary — warm amber shutter / CTA */
+    --primary:        0.80 0.14 70;
+    --primary-foreground: 0.09 0.005 270;
+
+    /* Secondary — subtle dark surface */
+    --secondary:      0.17 0.008 270;
+    --secondary-foreground: 0.82 0.01 80;
+
+    /* Muted — dim labels */
+    --muted:          0.17 0.008 270;
+    --muted-foreground: 0.52 0.01 80;
+
+    /* Accent — slightly lighter surface highlight */
+    --accent:         0.20 0.010 270;
+    --accent-foreground: 0.94 0.008 80;
+
+    /* Destructive — soft red */
+    --destructive:    0.60 0.20 22;
+    --destructive-foreground: 0.97 0 0;
+
+    /* Borders & inputs */
+    --border:         0.22 0.008 270;
+    --input:          0.22 0.008 270;
+    --ring:           0.80 0.14 70;
+
+    /* Charts */
+    --chart-1: 0.80 0.14 70;
+    --chart-2: 0.70 0.12 200;
+    --chart-3: 0.65 0.16 140;
+    --chart-4: 0.75 0.18 320;
+    --chart-5: 0.60 0.20 22;
+
+    /* Sidebar (reuse main palette) */
+    --sidebar:              0.13 0.007 270;
+    --sidebar-foreground:   0.94 0.008 80;
+    --sidebar-primary:      0.80 0.14 70;
+    --sidebar-primary-foreground: 0.09 0.005 270;
+    --sidebar-accent:       0.20 0.010 270;
+    --sidebar-accent-foreground: 0.94 0.008 80;
+    --sidebar-border:       0.22 0.008 270;
+    --sidebar-ring:         0.80 0.14 70;
+
+    /* App-specific tokens */
+    --shutter-glow: oklch(0.80 0.14 70 / 0.35);
+    --shutter-ring: oklch(0.80 0.14 70 / 0.18);
+    --nav-height: 4rem;
+    --viewer-bg: oklch(0.04 0 0 / 0.96);
+  }
+
+  /* Force dark mode — this is a dark-only app */
+  html {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "General Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Cabinet Grotesk", sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ─── Camera page — full bleed, no scrollbars ──────────────────────────── */
+.camera-page {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Shutter button pulse ──────────────────────────────────────────────── */
+@keyframes shutter-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--shutter-ring); }
+  70%  { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.shutter-btn:active {
+  transform: scale(0.92);
+}
+
+/* ─── Gallery fade-in grid items ─────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.gallery-thumb {
+  animation: fade-up 0.3s ease-out both;
+}
+
+/* ─── Safe area insets for notched phones ────────────────────────────────── */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Capture overlay backdrop blur ─────────────────────────────────────── */
+.capture-overlay {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ─── Viewer overlay ─────────────────────────────────────────────────────── */
+.viewer-overlay {
+  background: var(--viewer-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ─── QC Table row colors ────────────────────────────────────────────────── */
+.row-green {
+  background-color: oklch(0.32 0.07 145 / 0.25);
+}
+.row-green:hover {
+  background-color: oklch(0.35 0.07 145 / 0.35);
+}
+.row-yellow {
+  background-color: oklch(0.75 0.14 80 / 0.15);
+}
+.row-yellow:hover {
+  background-color: oklch(0.75 0.14 80 / 0.25);
+}
+.row-red {
+  background-color: oklch(0.55 0.18 22 / 0.20);
+}
+.row-red:hover {
+  background-color: oklch(0.55 0.18 22 / 0.30);
+}
+
+/* ─── QC table horizontal scrollbar styling ────────────────────────────────── */
+.qc-table-wrapper {
+  overscroll-behavior-x: contain;
+}
