@@ -1,43 +1,33 @@
-# Garment QC Report App
+# Garment QC Report
 
 ## Current State
-New project. No existing code.
+New build. No existing application files.
 
 ## Requested Changes (Diff)
 
 ### Add
-- QC Inspector login (single inspector account)
-- Report creation screen with a spreadsheet-style table:
-  - Columns: Operation, Operator Name, 1st Hour, 2nd Hour, 3rd Hour, 4th Hour, 5th Hour, 6th Hour, 7th Hour, 8th Hour, Defect Type, No. of Defects, Action Taken
-  - 30 operator rows per report
-  - Row color coding:
-    - Green: 0 total defects across all 8 hours
-    - Yellow: exactly 1 defect across all 8 hours
-    - Red: 2 or more defects across all 8 hours
-  - Long-press (500ms hold) on any cell opens an inline edit modal
-- Camera capture feature (optional autofill):
-  - Opens device camera to photograph a defect tag or handwritten sheet
-  - Attempts OCR-style extraction to autofill Defect Type, No. of Defects, Action Taken fields for a selected row
-  - User can confirm or discard autofill suggestions
-- Report submission:
-  - Saves report with timestamp (date + time) to app storage (IndexedDB)
-  - Report is immutable once submitted
-- Reports list screen:
-  - Shows all saved reports ordered by submission date/time (newest first)
-  - Tap to view any past report in read-only mode
-  - Download as .xlsx Excel file (using SheetJS/xlsx library)
-  - Share via Web Share API (share the xlsx file)
-- Navigation: tab bar with "New Report" and "Reports" tabs
+- QC report table with columns: Operation, Operator Name, Hour 1-8 (defect count per hour), Defect, No. of Defects, Action Taken
+- Row color coding: Green = 0 total defects across hours, Yellow = exactly 1 defect, Red = 2+ defects
+- Per-row camera capture: take a live photo attached to that operator's row, auto-stamped with date/time
+- Photo stored with row and visible when viewing saved report
+- Long-press (500ms hold) on any cell to enter edit mode
+- Auto-save draft to localStorage so reopening resumes the last unfinished report
+- Report submission saves to IndexedDB with submitted date/time
+- Report history list: view all saved reports
+- Download report as Excel (.xlsx) file
+- Share report via Web Share API
 
 ### Modify
-- Project renamed to "Garment QC Report"
+- N/A
 
 ### Remove
-- Nothing (new project)
+- N/A
 
 ## Implementation Plan
-1. Backend: store reports (id, timestamp, rows array), list reports, get report by id, delete report
-2. Frontend: auth gate (inspector login), new report form with 30-row table, row color logic, long-press edit modal, camera capture + autofill suggestion UI, submit action, reports list, report viewer, xlsx download, Web Share API share button
-3. Use SheetJS (xlsx) library in frontend for Excel export
-4. Camera component from Caffeine for live capture
-5. PWA manifest for installability on Android
+1. Backend: store reports (operator rows, photos as base64, timestamps), list reports, delete report
+2. Frontend report editor: scrollable table with fixed header, inline cell editing on long-press, hour input fields, color-coded rows
+3. Camera modal: open camera, capture photo, attach to row with date/time stamp
+4. Draft persistence: auto-save table state to localStorage on every change, restore on load
+5. Report history page: list submitted reports sorted by date, tap to view, download as Excel, share
+6. Excel export: use SheetJS (xlsx) library to build and download .xlsx file
+7. PWA manifest for Android home screen install

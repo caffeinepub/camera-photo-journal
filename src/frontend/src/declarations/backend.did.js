@@ -8,14 +8,120 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
+});
+export const PhotoData = IDL.Record({
+  'imageData' : IDL.Text,
+  'timestamp' : IDL.Int,
+});
+export const OperatorRow = IDL.Record({
+  'defectType' : IDL.Text,
+  'operationName' : IDL.Text,
+  'defectCounts' : IDL.Vec(IDL.Nat),
+  'operatorName' : IDL.Text,
+  'numberOfDefects' : IDL.Nat,
+  'photo' : IDL.Opt(PhotoData),
+  'actionTaken' : IDL.Text,
+});
+export const QCReport = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'date' : IDL.Int,
+  'submittedTimestamp' : IDL.Int,
+  'operatorRows' : IDL.Vec(OperatorRow),
+});
+export const UserProfile = IDL.Record({ 'name' : IDL.Text });
+
 export const idlService = IDL.Service({
-  'greet' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
+  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'clearDraftReport' : IDL.Func([], [], []),
+  'deleteReport' : IDL.Func([IDL.Nat], [], []),
+  'getAllReports' : IDL.Func([], [IDL.Vec(QCReport)], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getDraftReport' : IDL.Func([], [IDL.Opt(QCReport)], ['query']),
+  'getReportById' : IDL.Func([IDL.Nat], [IDL.Opt(QCReport)], ['query']),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
+  'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveDraftReport' : IDL.Func(
+      [IDL.Text, IDL.Int, IDL.Vec(OperatorRow)],
+      [],
+      [],
+    ),
+  'saveReport' : IDL.Func(
+      [IDL.Text, IDL.Int, IDL.Vec(OperatorRow)],
+      [IDL.Nat],
+      [],
+    ),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  return IDL.Service({ 'greet' : IDL.Func([IDL.Text], [IDL.Text], ['query']) });
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
+  });
+  const PhotoData = IDL.Record({
+    'imageData' : IDL.Text,
+    'timestamp' : IDL.Int,
+  });
+  const OperatorRow = IDL.Record({
+    'defectType' : IDL.Text,
+    'operationName' : IDL.Text,
+    'defectCounts' : IDL.Vec(IDL.Nat),
+    'operatorName' : IDL.Text,
+    'numberOfDefects' : IDL.Nat,
+    'photo' : IDL.Opt(PhotoData),
+    'actionTaken' : IDL.Text,
+  });
+  const QCReport = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'date' : IDL.Int,
+    'submittedTimestamp' : IDL.Int,
+    'operatorRows' : IDL.Vec(OperatorRow),
+  });
+  const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  
+  return IDL.Service({
+    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'clearDraftReport' : IDL.Func([], [], []),
+    'deleteReport' : IDL.Func([IDL.Nat], [], []),
+    'getAllReports' : IDL.Func([], [IDL.Vec(QCReport)], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getDraftReport' : IDL.Func([], [IDL.Opt(QCReport)], ['query']),
+    'getReportById' : IDL.Func([IDL.Nat], [IDL.Opt(QCReport)], ['query']),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
+    'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveDraftReport' : IDL.Func(
+        [IDL.Text, IDL.Int, IDL.Vec(OperatorRow)],
+        [],
+        [],
+      ),
+    'saveReport' : IDL.Func(
+        [IDL.Text, IDL.Int, IDL.Vec(OperatorRow)],
+        [IDL.Nat],
+        [],
+      ),
+  });
 };
 
 export const init = ({ IDL }) => { return []; };

@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { QCReport, QCRowData } from "@/db-qc";
+import { getRowStatusLabel } from "@/db-qc";
 import { useReports } from "@/hooks/useReports";
+import {
+  type SheetRow,
+  exportAsShareFile,
+  exportAsXlsx,
+} from "@/lib/xlsxExport";
 import { format } from "date-fns";
 import {
   ArrowLeft,
@@ -24,354 +30,230 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 
-// ─── Excel Export Helper ──────────────────────────────────────────────────────
+// ─── Build sheet rows ────────────────────────────────────────────────────────────
 
-function getRowStatus(row: QCRowData): string {
-  const total = [
-    row.hr1,
-    row.hr2,
-    row.hr3,
-    row.hr4,
-    row.hr5,
-    row.hr6,
-    row.hr7,
-    row.hr8,
-  ]
-    .map((v) => Number(v) || 0)
-    .reduce((a, b) => a + b, 0);
-  if (total >= 2) return "RED";
-  if (total === 1) return "YELLOW";
-  return "GREEN";
-}
+function buildSheetRows(report: QCReport): SheetRow[] {
+  const headerRow: SheetRow = {
+    values: [
+      "#",
+      "Operation",
+      "Operator Name",
+      "1st Hour",
+      "2nd Hour",
+      "3rd Hour",
+      "4th Hour",
+      "5th Hour",
+      "6th Hour",
+      "7th Hour",
+      "8th Hour",
+      "Defect Type",
+      "No. of Defects",
+      "Action Taken",
+      "Status",
+    ],
+  };
 
-function exportToExcel(report: QCReport): Blob {
-  const headers = [
-    "#",
-    "Operation",
-    "Operator Name",
-    "1st Hour",
-    "2nd Hour",
-    "3rd Hour",
-    "4th Hour",
-    "5th Hour",
-    "6th Hour",
-    "7th Hour",
-    "8th Hour",
-    "Defect Type",
-    "No. of Defects",
-    "Action Taken",
-    "Status",
+  const titleRows: SheetRow[] = [
+    { values: [report.title] },
+    {
+      values: [
+        `Submitted: ${format(new Date(report.submittedAt), "MMM d, yyyy HH:mm")}`,
+      ],
+    },
+    { values: [] },
+    headerRow,
   ];
 
-  const dataRows = report.rows.map((row, i) => [
-    i + 1,
-    row.operation,
-    row.operatorName || `Operator ${i + 1}`,
-    Number(row.hr1) || 0,
-    Number(row.hr2) || 0,
-    Number(row.hr3) || 0,
-    Number(row.hr4) || 0,
-    Number(row.hr5) || 0,
-    Number(row.hr6) || 0,
-    Number(row.hr7) || 0,
-    Number(row.hr8) || 0,
-    row.defectType,
-    Number(row.noOfDefects) || 0,
-    row.actionTaken,
-    getRowStatus(row),
-  ]);
-
-  // Title row + blank + headers + data
-  const sheetData = [
-    [report.title],
-    [`Submitted: ${format(new Date(report.submittedAt), "MMM d, yyyy HH:mm")}`],
-    [],
-    headers,
-    ...dataRows,
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-  // Column widths
-  ws["!cols"] = [
-    { wch: 4 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 14 },
-    { wch: 10 },
-    { wch: 20 },
-    { wch: 10 },
-  ];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "QC Report");
-
-  const xlsxBuffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  return new Blob([xlsxBuffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  const dataRows: SheetRow[] = report.rows.map((row: QCRowData, i: number) => {
+    const status = getRowStatusLabel(row);
+    const bgColor =
+      status === "RED" ? "FFCCCC" : status === "YELLOW" ? "FFFACC" : "CCFFCC";
+    return {
+      bgColor,
+      values: [
+        i + 1,
+        row.operation,
+        row.operatorName,
+        Number(row.hr1) || 0,
+        Number(row.hr2) || 0,
+        Number(row.hr3) || 0,
+        Number(row.hr4) || 0,
+        Number(row.hr5) || 0,
+        Number(row.hr6) || 0,
+        Number(row.hr7) || 0,
+        Number(row.hr8) || 0,
+        row.defectType,
+        Number(row.noOfDefects) || 0,
+        row.actionTaken,
+        status,
+      ],
+    };
   });
+
+  return [...titleRows, ...dataRows];
 }
 
-// ─── Count filled rows ────────────────────────────────────────────────────────
+// ─── Report List Item ──────────────────────────────────────────────────────────
 
-function countFilledRows(rows: QCRowData[]): number {
-  return rows.filter(
-    (r, i) =>
-      r.operation ||
-      r.operatorName !== `Operator ${i + 1}` ||
-      r.hr1 ||
-      r.hr2 ||
-      r.hr3 ||
-      r.hr4 ||
-      r.hr5 ||
-      r.hr6 ||
-      r.hr7 ||
-      r.hr8 ||
-      r.defectType ||
-      r.noOfDefects ||
-      r.actionTaken,
-  ).length;
-}
-
-// ─── Report Viewer ─────────────────────────────────────────────────────────────
-
-interface ReportViewerProps {
+interface ReportListItemProps {
   report: QCReport;
-  onBack: () => void;
+  index: number;
+  onView: (r: QCReport) => void;
   onDelete: (id: string) => void;
 }
 
-function ReportViewer({ report, onBack, onDelete }: ReportViewerProps) {
+function ReportListItem({
+  report,
+  index,
+  onView,
+  onDelete,
+}: ReportListItemProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const filename = `${report.title.replace(/[^a-z0-9]/gi, "_")}_${format(new Date(report.submittedAt), "yyyyMMdd_HHmm")}.xlsx`;
 
   const handleDownload = useCallback(async () => {
     setIsDownloading(true);
     try {
-      const blob = exportToExcel(report);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const filename = `${report.title.replace(/[^a-z0-9]/gi, "_")}_${format(new Date(report.submittedAt), "yyyyMMdd_HHmm")}.xlsx`;
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Excel file downloaded!");
+      await exportAsXlsx(filename, "QC Report", buildSheetRows(report));
     } catch {
-      toast.error("Failed to export Excel file.");
+      toast.error("Export failed.");
     } finally {
       setIsDownloading(false);
     }
-  }, [report]);
+  }, [report, filename]);
 
   const handleShare = useCallback(async () => {
     if (!navigator.share) {
-      toast.error("Web Share not supported on this browser.");
+      toast.error("Sharing not supported on this device.");
       return;
     }
-    setIsSharing(true);
     try {
-      const blob = exportToExcel(report);
-      const filename = `${report.title.replace(/[^a-z0-9]/gi, "_")}.xlsx`;
-      const file = new File([blob], filename, {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      await navigator.share({
-        title: report.title,
-        text: `QC Report — ${format(new Date(report.submittedAt), "MMM d, yyyy HH:mm")}`,
-        files: [file],
-      });
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        toast.error("Failed to share report.");
+      const file = await exportAsShareFile(
+        filename,
+        "QC Report",
+        buildSheetRows(report),
+      );
+      if (!file) {
+        toast.error("Could not generate file for sharing.");
+        return;
       }
-    } finally {
-      setIsSharing(false);
-    }
-  }, [report]);
-
-  const handleDelete = useCallback(async () => {
-    setIsDeleting(true);
-    try {
-      onDelete(report.id);
-      toast.success("Report deleted.");
+      await navigator.share({ files: [file], title: report.title });
     } catch {
-      toast.error("Failed to delete report.");
-      setIsDeleting(false);
+      toast.error("Share failed.");
     }
-  }, [report.id, onDelete]);
+  }, [report, filename]);
 
   const greenCount = report.rows.filter(
-    (r) => getRowStatus(r) === "GREEN",
+    (r) => getRowStatusLabel(r) === "GREEN",
   ).length;
   const yellowCount = report.rows.filter(
-    (r) => getRowStatus(r) === "YELLOW",
+    (r) => getRowStatusLabel(r) === "YELLOW",
   ).length;
-  const redCount = report.rows.filter((r) => getRowStatus(r) === "RED").length;
+  const redCount = report.rows.filter(
+    (r) => getRowStatusLabel(r) === "RED",
+  ).length;
 
   return (
-    <motion.div
-      key="viewer"
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="fixed inset-0 z-30 bg-background flex flex-col"
-    >
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            data-ocid="report_viewer.close_button"
-            onClick={onBack}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-card hover:bg-accent text-foreground transition-colors shrink-0"
-            aria-label="Back to reports"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-display text-base font-bold text-foreground truncate">
-              {report.title}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {format(new Date(report.submittedAt), "MMM d, yyyy · HH:mm")}
-            </p>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        className="bg-card border border-border rounded-lg p-3"
+        data-ocid={`report.item.${index + 1}`}
+      >
+        <button
+          type="button"
+          className="w-full text-left"
+          onClick={() => onView(report)}
+        >
+          <p className="font-semibold text-sm truncate">{report.title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {format(new Date(report.submittedAt), "MMM d, yyyy · HH:mm")}
+            {report.date && report.date !== report.submittedAt ? (
+              <>
+                {" "}
+                · Report date: {format(new Date(report.date), "MMM d, yyyy")}
+              </>
+            ) : null}
+          </p>
+          <div className="flex gap-3 mt-1.5 text-[10px] font-medium">
+            <span className="text-green-400">{greenCount} Green</span>
+            <span className="text-yellow-400">{yellowCount} Yellow</span>
+            <span className="text-red-400">{redCount} Red</span>
           </div>
-        </div>
-
-        {/* Summary stats */}
-        <div className="flex gap-2 mt-3">
-          <div className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-green-500/10 border border-green-500/20">
-            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-            <span className="text-xs font-semibold text-green-400">
-              {greenCount}
-            </span>
-            <span className="text-[10px] text-green-400/70 truncate">
-              Clean
-            </span>
-          </div>
-          <div className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-yellow-500/10 border border-yellow-500/20">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" />
-            <span className="text-xs font-semibold text-yellow-400">
-              {yellowCount}
-            </span>
-            <span className="text-[10px] text-yellow-400/70 truncate">
-              1 Defect
-            </span>
-          </div>
-          <div className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-red-500/10 border border-red-500/20">
-            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-            <span className="text-xs font-semibold text-red-400">
-              {redCount}
-            </span>
-            <span className="text-[10px] text-red-400/70 truncate">
-              2+ Defects
-            </span>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-2 mt-3">
+        </button>
+        <div className="flex gap-2 mt-2">
           <Button
-            data-ocid="report_viewer.download_button"
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs h-7"
             onClick={handleDownload}
             disabled={isDownloading}
-            size="sm"
-            variant="outline"
-            className="flex-1 gap-1.5 border-border text-foreground hover:bg-accent"
+            data-ocid={`report.download_button.${index + 1}`}
           >
             {isDownloading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
             ) : (
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3 h-3 mr-1" />
             )}
-            Excel
+            Download
           </Button>
           <Button
-            data-ocid="report_viewer.share_button"
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs h-7"
             onClick={handleShare}
-            disabled={isSharing}
-            size="sm"
-            variant="outline"
-            className="flex-1 gap-1.5 border-border text-foreground hover:bg-accent"
+            data-ocid={`report.share_button.${index + 1}`}
           >
-            {isSharing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Share2 className="w-3.5 h-3.5" />
-            )}
-            Share
+            <Share2 className="w-3 h-3 mr-1" /> Share
           </Button>
           <Button
-            data-ocid="report_viewer.delete_button"
-            onClick={() => setShowDeleteDialog(true)}
-            size="sm"
             variant="outline"
-            className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+            size="sm"
+            className="text-xs h-7 text-destructive hover:bg-destructive/10"
+            onClick={() => setConfirmDelete(true)}
+            data-ocid={`report.delete_button.${index + 1}`}
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
+            <Trash2 className="w-3 h-3" />
           </Button>
         </div>
-      </header>
+      </motion.div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto">
-        <QCTable rows={report.rows} readOnly />
-      </div>
-
-      {/* Delete Confirm Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-card border-border">
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent data-ocid="report.delete_dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-foreground">
-              Delete Report?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
+            <AlertDialogTitle>Delete Report?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will permanently delete "{report.title}". This action cannot
               be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              data-ocid="delete_confirm.cancel_button"
-              className="border-border text-foreground hover:bg-accent"
-              disabled={isDeleting}
-            >
+            <AlertDialogCancel data-ocid="report.delete_cancel_button">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              data-ocid="delete_confirm.confirm_button"
-              onClick={handleDelete}
-              disabled={isDeleting}
+              onClick={() => {
+                onDelete(report.id);
+                setConfirmDelete(false);
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-ocid="report.delete_confirm_button"
             >
-              {isDeleting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </motion.div>
+    </>
   );
 }
 
-// ─── Reports List Page ─────────────────────────────────────────────────────────
+// ─── Reports Page ─────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
   const { reports, isLoading, deleteReport } = useReports();
@@ -379,151 +261,98 @@ export default function ReportsPage() {
 
   const handleDelete = useCallback(
     async (id: string) => {
-      await deleteReport(id);
-      setViewingReport(null);
+      try {
+        await deleteReport(id);
+        if (viewingReport?.id === id) setViewingReport(null);
+        toast.success("Report deleted.");
+      } catch {
+        toast.error("Failed to delete report.");
+      }
     },
-    [deleteReport],
+    [deleteReport, viewingReport],
   );
 
-  return (
-    <>
-      <main className="flex flex-col min-h-screen pb-[calc(var(--nav-height)+1rem)]">
-        {/* Header */}
-        <header className="sticky top-0 z-10 px-4 pt-4 pb-3 bg-background/95 backdrop-blur-sm border-b border-border">
-          <h1 className="font-display text-2xl font-bold text-foreground tracking-tight">
-            Reports
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLoading
-              ? "Loading…"
-              : reports.length === 0
-                ? "No reports saved yet"
-                : `${reports.length} report${reports.length !== 1 ? "s" : ""}`}
-          </p>
+  if (viewingReport) {
+    return (
+      <main
+        className="min-h-screen flex flex-col"
+        style={{ paddingBottom: "calc(var(--nav-height) + 16px)" }}
+      >
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewingReport(null)}
+              data-ocid="report_view.back_button"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate">
+                {viewingReport.title}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {format(
+                  new Date(viewingReport.submittedAt),
+                  "MMM d, yyyy HH:mm",
+                )}
+              </p>
+            </div>
+          </div>
         </header>
+        <div className="flex-1 px-1 pt-2">
+          <QCTable rows={viewingReport.rows} readOnly />
+        </div>
+      </main>
+    );
+  }
 
-        {/* Content */}
+  return (
+    <main
+      className="min-h-screen flex flex-col"
+      style={{ paddingBottom: "calc(var(--nav-height) + 16px)" }}
+    >
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+        <h1 className="font-bold text-base flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-primary" /> Report History
+        </h1>
+      </header>
+
+      <div className="flex-1 px-3 py-3 space-y-2">
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          <div
+            className="flex flex-col items-center justify-center gap-3 py-16"
+            data-ocid="reports.loading_state"
+          >
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading reports...</p>
           </div>
         ) : reports.length === 0 ? (
           <div
+            className="flex flex-col items-center justify-center gap-3 py-16 text-center"
             data-ocid="reports.empty_state"
-            className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center"
           >
-            <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center border border-border">
-              <ClipboardList className="w-7 h-7 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold text-foreground mb-1">
-                No reports yet
-              </p>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Submit a QC report from the New Report tab to see it here.
-              </p>
-            </div>
+            <ClipboardList className="w-12 h-12 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No reports yet.</p>
+            <p className="text-xs text-muted-foreground/60">
+              Submit a report from the New Report tab.
+            </p>
           </div>
         ) : (
-          <div data-ocid="reports.list" className="flex flex-col gap-3 p-4">
-            {reports.map((report, i) => {
-              const filledRows = countFilledRows(report.rows);
-              const green = report.rows.filter(
-                (r) => getRowStatus(r) === "GREEN",
-              ).length;
-              const yellow = report.rows.filter(
-                (r) => getRowStatus(r) === "YELLOW",
-              ).length;
-              const red = report.rows.filter(
-                (r) => getRowStatus(r) === "RED",
-              ).length;
-              const markerIndex = i + 1;
-
-              return (
-                <button
-                  key={report.id}
-                  type="button"
-                  data-ocid={`reports.item.${markerIndex}`}
-                  onClick={() => setViewingReport(report)}
-                  className="w-full text-left bg-card border border-border rounded-xl p-4 hover:bg-accent/30 active:scale-[0.99] transition-all duration-150 group"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                        {report.title}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {format(
-                          new Date(report.submittedAt),
-                          "MMM d, yyyy · HH:mm",
-                        )}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0 pt-0.5">
-                      {filledRows} row{filledRows !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  {/* Status bar */}
-                  <div className="flex gap-1.5 mt-3">
-                    {green > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        <span className="text-[10px] text-green-400 font-medium">
-                          {green}
-                        </span>
-                      </div>
-                    )}
-                    {yellow > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                        <span className="text-[10px] text-yellow-400 font-medium">
-                          {yellow}
-                        </span>
-                      </div>
-                    )}
-                    {red > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        <span className="text-[10px] text-red-400 font-medium">
-                          {red}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-
-            {/* Footer */}
-            <footer className="py-4 text-center">
-              <p className="text-xs text-muted-foreground">
-                © {new Date().getFullYear()}.{" "}
-                <a
-                  href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors"
-                >
-                  Built with ♥ using caffeine.ai
-                </a>
-              </p>
-            </footer>
-          </div>
+          <AnimatePresence>
+            {reports.map((report, i) => (
+              <ReportListItem
+                key={report.id}
+                report={report}
+                index={i}
+                onView={setViewingReport}
+                onDelete={handleDelete}
+              />
+            ))}
+          </AnimatePresence>
         )}
-      </main>
-
-      {/* Report Viewer */}
-      <AnimatePresence>
-        {viewingReport && (
-          <ReportViewer
-            key={viewingReport.id}
-            report={viewingReport}
-            onBack={() => setViewingReport(null)}
-            onDelete={handleDelete}
-          />
-        )}
-      </AnimatePresence>
-    </>
+      </div>
+    </main>
   );
 }

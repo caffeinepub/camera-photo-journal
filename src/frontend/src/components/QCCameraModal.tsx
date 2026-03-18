@@ -2,15 +2,7 @@ import { useCamera } from "@/camera/useCamera";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Camera,
-  CameraOff,
-  Check,
-  Loader2,
-  RefreshCw,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { Camera, CameraOff, Check, Loader2, RotateCcw, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -22,6 +14,7 @@ interface QCCameraModalProps {
     noOfDefects: string;
     actionTaken: string;
     photoDataUrl?: string;
+    photoTimestamp?: number;
   }) => void;
   onClose: () => void;
 }
@@ -32,58 +25,33 @@ export function QCCameraModal({
   onConfirm,
   onClose,
 }: QCCameraModalProps) {
-  const camera = useCamera({ facingMode: "environment", quality: 0.8 });
-  const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const camera = useCamera({ facingMode: "environment", quality: 0.85 });
+  const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
   const [defectType, setDefectType] = useState("");
   const [noOfDefects, setNoOfDefects] = useState("");
   const [actionTaken, setActionTaken] = useState("");
-  const urlRef = useRef<string | null>(null);
 
-  // Start camera when modal opens
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional
   useEffect(() => {
     if (open) {
       camera.startCamera();
     } else {
       camera.stopCamera();
-      // reset state
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
-      setCapturedUrl(null);
+      setCapturedDataUrl(null);
       setDefectType("");
       setNoOfDefects("");
       setActionTaken("");
     }
   }, [open]);
 
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-      }
-    };
-  }, []);
-
   const handleCapture = useCallback(async () => {
     const file = await camera.capturePhoto();
     if (!file) return;
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    const url = URL.createObjectURL(file);
-    urlRef.current = url;
-    setCapturedUrl(url);
-    await camera.stopCamera();
-  }, [camera]);
-
-  const handleRetake = useCallback(async () => {
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
-    }
-    setCapturedUrl(null);
-    await camera.startCamera();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setCapturedDataUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
   }, [camera]);
 
   const handleConfirm = useCallback(() => {
@@ -91,192 +59,158 @@ export function QCCameraModal({
       defectType,
       noOfDefects,
       actionTaken,
-      photoDataUrl: capturedUrl ?? undefined,
+      photoDataUrl: capturedDataUrl ?? undefined,
+      photoTimestamp: capturedDataUrl ? Date.now() : undefined,
     });
-  }, [defectType, noOfDefects, actionTaken, capturedUrl, onConfirm]);
+  }, [defectType, noOfDefects, actionTaken, capturedDataUrl, onConfirm]);
 
   if (!open) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="qc-camera-modal"
-        className="fixed inset-0 z-50 flex flex-col bg-black"
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 40 }}
-        transition={{ duration: 0.2 }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 bg-black/80">
-          <button
-            type="button"
-            data-ocid="camera.cancel_button"
-            onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
-            aria-label="Close camera"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <p className="text-white font-display text-sm font-semibold">
-            Row {rowIndex + 1} — Photo Assist
-          </p>
-          <div className="w-10" />
-        </div>
+    <div
+      className="fixed inset-0 z-50 bg-background/95 flex flex-col"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      data-ocid="camera.modal"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="font-semibold text-sm">
+          Row {rowIndex + 1} — Camera
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          data-ocid="camera.close_button"
+        >
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
 
-        {/* Viewfinder */}
-        <div className="flex-1 relative overflow-hidden bg-black">
-          {!capturedUrl && (
-            <>
+      {/* Camera / Preview */}
+      <div className="flex-1 relative overflow-hidden bg-black">
+        <AnimatePresence mode="wait">
+          {capturedDataUrl ? (
+            <motion.img
+              key="preview"
+              src={capturedDataUrl}
+              alt="Captured"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 w-full h-full object-contain"
+            />
+          ) : (
+            <motion.div
+              key="live"
+              className="absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
               <video
                 ref={camera.videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{
-                  display:
-                    camera.isActive && !camera.isLoading ? "block" : "none",
-                }}
+                className="w-full h-full object-cover"
               />
               <canvas ref={camera.canvasRef} className="hidden" />
-
-              {camera.isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                </div>
-              )}
-
-              {!camera.isLoading && camera.error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
-                  <CameraOff className="w-10 h-10 text-white/40" />
-                  <p className="text-white/70 text-sm">
+              {camera.error && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-4">
+                  <CameraOff className="w-10 h-10 text-destructive" />
+                  <p className="text-sm text-destructive">
                     {camera.error.message}
                   </p>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => camera.retry()}
-                    className="gap-2 border-white/20 text-white hover:bg-white/10"
+                    data-ocid="camera.retry_button"
                   >
-                    <RefreshCw className="w-4 h-4" />
                     Retry
                   </Button>
                 </div>
               )}
-
-              {!camera.isLoading &&
-                !camera.error &&
-                camera.isSupported === false && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
-                    <Camera className="w-10 h-10 text-white/40" />
-                    <p className="text-white/70 text-sm">
-                      Camera not available. You can still fill the fields
-                      manually.
-                    </p>
-                  </div>
-                )}
-            </>
+              {camera.isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              )}
+            </motion.div>
           )}
+        </AnimatePresence>
+      </div>
 
-          {capturedUrl && (
-            <img
-              src={capturedUrl}
-              alt="Captured for QC row"
-              className="absolute inset-0 w-full h-full object-contain"
+      {/* Capture button or retake */}
+      <div className="px-4 py-3 flex items-center justify-center gap-3 border-t border-border">
+        {capturedDataUrl ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCapturedDataUrl(null)}
+            data-ocid="camera.retake_button"
+          >
+            <RotateCcw className="w-4 h-4 mr-1" /> Retake
+          </Button>
+        ) : (
+          <Button
+            size="lg"
+            className="rounded-full w-16 h-16 p-0"
+            onClick={handleCapture}
+            disabled={!camera.isActive || camera.isLoading}
+            data-ocid="camera.capture_button"
+          >
+            <Camera className="w-6 h-6" />
+          </Button>
+        )}
+      </div>
+
+      {/* Optional fields */}
+      <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">
+          Optional — auto-fill row data
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label className="text-xs">Defect</Label>
+            <Input
+              value={defectType}
+              onChange={(e) => setDefectType(e.target.value)}
+              placeholder="Type..."
+              className="text-xs h-8"
+              data-ocid="camera.defect_input"
             />
-          )}
+          </div>
+          <div>
+            <Label className="text-xs">No. of Defects</Label>
+            <Input
+              type="number"
+              min={0}
+              value={noOfDefects}
+              onChange={(e) => setNoOfDefects(e.target.value)}
+              placeholder="0"
+              className="text-xs h-8"
+              data-ocid="camera.defect_count_input"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Action</Label>
+            <Input
+              value={actionTaken}
+              onChange={(e) => setActionTaken(e.target.value)}
+              placeholder="Action..."
+              className="text-xs h-8"
+              data-ocid="camera.action_input"
+            />
+          </div>
         </div>
-
-        {/* Controls */}
-        <div className="bg-zinc-950 px-4 pt-4 pb-6 space-y-4">
-          {!capturedUrl ? (
-            /* Capture button */
-            <div className="flex justify-center">
-              <button
-                type="button"
-                data-ocid="camera.capture_button"
-                onClick={handleCapture}
-                disabled={!camera.isActive || camera.isLoading}
-                className="relative w-16 h-16 rounded-full disabled:opacity-30 transition-transform active:scale-90"
-                aria-label="Capture photo"
-              >
-                <span className="absolute inset-0 rounded-full border-4 border-white/80" />
-                <span className="absolute inset-2 rounded-full bg-white" />
-              </button>
-            </div>
-          ) : (
-            /* After capture — fill fields */
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground text-center">
-                Photo captured. Fill in the details (optional):
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">
-                    Defect Type
-                  </Label>
-                  <Input
-                    value={defectType}
-                    onChange={(e) => setDefectType(e.target.value)}
-                    placeholder="e.g. Stitch skip"
-                    className="bg-zinc-900 border-zinc-700 text-white text-sm h-9"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">
-                    No. of Defects
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={noOfDefects}
-                    onChange={(e) => setNoOfDefects(e.target.value)}
-                    placeholder="0"
-                    className="bg-zinc-900 border-zinc-700 text-white text-sm h-9"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  Action Taken
-                </Label>
-                <Input
-                  value={actionTaken}
-                  onChange={(e) => setActionTaken(e.target.value)}
-                  placeholder="e.g. Repaired and re-inspected"
-                  className="bg-zinc-900 border-zinc-700 text-white text-sm h-9"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-1">
-                <Button
-                  variant="outline"
-                  onClick={handleRetake}
-                  className="flex-1 gap-2 border-zinc-700 text-white/80 hover:bg-zinc-800"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Retake
-                </Button>
-                <Button
-                  data-ocid="camera.confirm_button"
-                  onClick={handleConfirm}
-                  className="flex-1 gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <Check className="w-4 h-4" />
-                  Confirm
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {!capturedUrl && (
-            <p className="text-center text-xs text-zinc-600">
-              No camera? You can close and edit cells directly.
-            </p>
-          )}
-        </div>
-      </motion.div>
-    </AnimatePresence>
+        <Button
+          className="w-full mt-2"
+          onClick={handleConfirm}
+          data-ocid="camera.confirm_button"
+        >
+          <Check className="w-4 h-4 mr-2" /> Confirm & Apply
+        </Button>
+      </div>
+    </div>
   );
 }

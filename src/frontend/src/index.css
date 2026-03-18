@@ -1,0 +1,150 @@
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/assets/fonts/DM Sans.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/assets/fonts/JetBrains Mono.woff2") format("woff2");
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Industrial dark-mode-first design */
+    --background: 0.14 0.008 250;
+    --foreground: 0.93 0.008 250;
+    --card: 0.18 0.01 250;
+    --card-foreground: 0.93 0.008 250;
+    --popover: 0.18 0.01 250;
+    --popover-foreground: 0.93 0.008 250;
+    --primary: 0.6 0.16 240;
+    --primary-foreground: 0.97 0.005 240;
+    --secondary: 0.24 0.012 250;
+    --secondary-foreground: 0.93 0.008 250;
+    --muted: 0.22 0.01 250;
+    --muted-foreground: 0.58 0.012 250;
+    --accent: 0.26 0.014 250;
+    --accent-foreground: 0.93 0.008 250;
+    --destructive: 0.52 0.22 25;
+    --destructive-foreground: 0.97 0.005 25;
+    --border: 0.26 0.012 250;
+    --input: 0.22 0.01 250;
+    --ring: 0.6 0.16 240;
+    --radius: 0.5rem;
+
+    /* Status colors */
+    --row-green-bg: 0.28 0.08 145;
+    --row-green-text: 0.92 0.06 145;
+    --row-yellow-bg: 0.3 0.08 80;
+    --row-yellow-text: 0.92 0.06 80;
+    --row-red-bg: 0.28 0.1 25;
+    --row-red-text: 0.92 0.06 25;
+
+    /* Chart colors */
+    --chart-1: 0.6 0.16 240;
+    --chart-2: 0.62 0.16 175;
+    --chart-3: 0.62 0.18 80;
+    --chart-4: 0.58 0.2 25;
+    --chart-5: 0.6 0.14 310;
+
+    /* Sidebar */
+    --sidebar: 0.16 0.01 250;
+    --sidebar-foreground: 0.93 0.008 250;
+    --sidebar-primary: 0.6 0.16 240;
+    --sidebar-primary-foreground: 0.97 0.005 240;
+    --sidebar-accent: 0.22 0.01 250;
+    --sidebar-accent-foreground: 0.93 0.008 250;
+    --sidebar-border: 0.26 0.012 250;
+    --sidebar-ring: 0.6 0.16 240;
+
+    /* Nav height for bottom bar */
+    --nav-height: 60px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ── QC Table row colors ──────────────────────────────────────────── */
+.row-green {
+  background-color: oklch(var(--row-green-bg) / 0.35) !important;
+}
+.row-green td {
+  color: oklch(var(--row-green-text)) !important;
+}
+.row-yellow {
+  background-color: oklch(var(--row-yellow-bg) / 0.35) !important;
+}
+.row-yellow td {
+  color: oklch(var(--row-yellow-text)) !important;
+}
+.row-red {
+  background-color: oklch(var(--row-red-bg) / 0.4) !important;
+}
+.row-red td {
+  color: oklch(var(--row-red-text)) !important;
+}
+
+/* ── Sticky columns ──────────────────────────────────────────────── */
+.sticky-col-1 {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: oklch(var(--card));
+}
+.sticky-col-2 {
+  position: sticky;
+  left: 80px;
+  z-index: 10;
+  background-color: oklch(var(--card));
+}
+.row-green .sticky-col-1,
+.row-green .sticky-col-2 {
+  background-color: oklch(var(--row-green-bg) / 0.35);
+}
+.row-yellow .sticky-col-1,
+.row-yellow .sticky-col-2 {
+  background-color: oklch(var(--row-yellow-bg) / 0.35);
+}
+.row-red .sticky-col-1,
+.row-red .sticky-col-2 {
+  background-color: oklch(var(--row-red-bg) / 0.4);
+}
+
+/* ── Safe area bottom ────────────────────────────────────────────── */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Long press cell ─────────────────────────────────────────────── */
+.qc-cell {
+  user-select: none;
+  cursor: pointer;
+  min-width: 52px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: background-color 0.15s;
+}
+.qc-cell:active {
+  background-color: oklch(var(--accent) / 0.5);
+}

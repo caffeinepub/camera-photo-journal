@@ -16,8 +16,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ['"Cabinet Grotesk"', 'sans-serif'],
-        sans:    ['"General Sans"', 'sans-serif'],
+        sans: ['"DM Sans"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
       },
       colors: {
         border: "oklch(var(--border))",

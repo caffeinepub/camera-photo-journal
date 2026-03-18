@@ -8,43 +8,55 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getRowColorClass } from "@/db-qc";
 import type { QCRowData } from "@/db-qc";
 import { Camera } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
-// ─── Row color coding ──────────────────────────────────────────────────────────
+// ─── Column definitions ──────────────────────────────────────────────────────
 
-function getRowColor(row: QCRowData): string {
-  const total = [
-    row.hr1,
-    row.hr2,
-    row.hr3,
-    row.hr4,
-    row.hr5,
-    row.hr6,
-    row.hr7,
-    row.hr8,
-  ]
-    .map((v) => Number(v) || 0)
-    .reduce((a, b) => a + b, 0);
-  if (total >= 2) return "row-red";
-  if (total === 1) return "row-yellow";
-  return "row-green";
-}
+const HOUR_FIELDS: Array<keyof QCRowData> = [
+  "hr1",
+  "hr2",
+  "hr3",
+  "hr4",
+  "hr5",
+  "hr6",
+  "hr7",
+  "hr8",
+];
 
-// ─── Long-press hook ───────────────────────────────────────────────────────────
+const HOUR_LABELS = [
+  "1st Hr",
+  "2nd Hr",
+  "3rd Hr",
+  "4th Hr",
+  "5th Hr",
+  "6th Hr",
+  "7th Hr",
+  "8th Hr",
+];
 
-function useLongPress(onLongPress: () => void, delay = 500) {
+const TEXT_FIELDS: Array<{ key: keyof QCRowData; label: string }> = [
+  { key: "defectType", label: "Defect" },
+  { key: "noOfDefects", label: "No." },
+  { key: "actionTaken", label: "Action Taken" },
+];
+
+// ─── Long-press hook ──────────────────────────────────────────────────────────
+
+function useLongPress(onLongPress: () => void, delay = 600) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasFiredRef = useRef(false);
 
-  const start = useCallback(() => {
-    hasFiredRef.current = false;
-    timerRef.current = setTimeout(() => {
-      hasFiredRef.current = true;
-      onLongPress();
-    }, delay);
-  }, [onLongPress, delay]);
+  const start = useCallback(
+    (e: React.TouchEvent | React.MouseEvent) => {
+      if (e.type === "touchstart") e.preventDefault();
+      timerRef.current = setTimeout(() => {
+        onLongPress();
+      }, delay);
+    },
+    [onLongPress, delay],
+  );
 
   const cancel = useCallback(() => {
     if (timerRef.current) {
@@ -83,53 +95,55 @@ function EditCellDialog({
   onClose,
 }: EditCellDialogProps) {
   const [draft, setDraft] = useState(value);
-
-  // Sync draft when dialog opens
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) setDraft(value);
-    if (!isOpen) onClose();
-  };
+  const prevRef = useRef(value);
+  if (prevRef.current !== value) {
+    prevRef.current = value;
+    setDraft(value);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-sm bg-card border-border">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent className="max-w-xs" data-ocid="edit_cell.dialog">
         <DialogHeader>
-          <DialogTitle className="font-display text-foreground">
-            Edit: {fieldName}
+          <DialogTitle className="text-sm font-semibold">
+            {fieldName}
           </DialogTitle>
         </DialogHeader>
         <div className="py-2">
-          <Label className="text-sm text-muted-foreground mb-1.5 block">
-            {fieldName}
+          <Label className="text-xs text-muted-foreground mb-1 block">
+            Value
           </Label>
           <Input
-            data-ocid="edit_cell.input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
             type={isNumeric ? "number" : "text"}
             min={isNumeric ? 0 : undefined}
-            max={isNumeric ? 99 : undefined}
-            autoFocus
-            className="bg-background border-input text-foreground"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") onSave(draft);
-              if (e.key === "Escape") onClose();
             }}
+            className="font-mono text-sm"
+            data-ocid="edit_cell.input"
           />
         </div>
         <DialogFooter className="gap-2">
           <Button
-            data-ocid="edit_cell.cancel_button"
             variant="outline"
+            size="sm"
             onClick={onClose}
-            className="flex-1"
+            data-ocid="edit_cell.cancel_button"
           >
             Cancel
           </Button>
           <Button
-            data-ocid="edit_cell.save_button"
+            size="sm"
             onClick={() => onSave(draft)}
-            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+            data-ocid="edit_cell.save_button"
           >
             Save
           </Button>
@@ -139,245 +153,347 @@ function EditCellDialog({
   );
 }
 
-// ─── Cell component ────────────────────────────────────────────────────────────
+// ─── Photo Viewer ───────────────────────────────────────────────────────────────────
 
-interface CellProps {
-  value: string;
-  placeholder?: string;
-  isNumeric?: boolean;
-  readOnly?: boolean;
-  onEdit: (value: string) => void;
-  rowIndex: number;
-  colKey: string;
+function PhotoViewer({
+  open,
+  dataUrl,
+  timestamp,
+  onClose,
+}: {
+  open: boolean;
+  dataUrl: string;
+  timestamp?: number;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent className="max-w-sm p-2" data-ocid="photo_viewer.dialog">
+        <DialogHeader>
+          <DialogTitle className="text-sm">
+            {timestamp ? new Date(timestamp).toLocaleString() : "Captured"}
+          </DialogTitle>
+        </DialogHeader>
+        <img src={dataUrl} alt="QC defect capture" className="w-full rounded" />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+          data-ocid="photo_viewer.close_button"
+        >
+          Close
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-function Cell({
+// ─── QC Cell (td + long press) ────────────────────────────────────────────────────
+
+function QCCell({
   value,
-  placeholder = "",
+  fieldName,
   isNumeric = false,
-  readOnly = false,
   onEdit,
-  rowIndex,
-  colKey,
-}: CellProps) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [colLabel] = useState(() => {
-    const labels: Record<string, string> = {
-      operation: "Operation",
-      operatorName: "Operator Name",
-      hr1: "1st Hour",
-      hr2: "2nd Hour",
-      hr3: "3rd Hour",
-      hr4: "4th Hour",
-      hr5: "5th Hour",
-      hr6: "6th Hour",
-      hr7: "7th Hour",
-      hr8: "8th Hour",
-      defectType: "Defect Type",
-      noOfDefects: "No. of Defects",
-      actionTaken: "Action Taken",
-    };
-    return labels[colKey] ?? colKey;
-  });
-
-  const longPress = useLongPress(() => {
-    if (!readOnly) setEditOpen(true);
-  }, 500);
-
-  if (readOnly) {
-    return (
-      <td className="table-cell px-2 py-1.5 text-center text-xs text-muted-foreground select-none border-r border-border/40 min-w-[2rem]">
-        {value}
-      </td>
-    );
-  }
-
+}: {
+  value: string;
+  fieldName: string;
+  isNumeric?: boolean;
+  onEdit: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const lp = useLongPress(() => setEditing(true));
   return (
-    <>
-      <td
-        className="table-cell px-2 py-1 border-r border-border/40 min-w-[5rem] cursor-pointer select-none"
-        {...longPress}
-        onClick={() => setEditOpen(true)}
-        title="Tap or hold to edit"
-      >
-        <span
-          className={`block text-xs truncate max-w-[8rem] ${value ? "text-foreground" : "text-muted-foreground/50"}`}
-        >
-          {value || placeholder}
-        </span>
-      </td>
+    <td className="border-r border-border/30 text-center">
+      <div className="qc-cell" {...lp} title="Long-press to edit">
+        {value || <span className="text-muted-foreground/40 text-xs">—</span>}
+      </div>
       <EditCellDialog
-        open={editOpen}
-        fieldName={`Row ${rowIndex + 1} — ${colLabel}`}
+        open={editing}
+        fieldName={fieldName}
         value={value}
         isNumeric={isNumeric}
         onSave={(v) => {
           onEdit(v);
-          setEditOpen(false);
+          setEditing(false);
         }}
-        onClose={() => setEditOpen(false)}
+        onClose={() => setEditing(false)}
+      />
+    </td>
+  );
+}
+
+// ─── Sticky cell (inside existing td) ──────────────────────────────────────────────
+
+function StickyCell({
+  value,
+  fieldName,
+  onEdit,
+}: {
+  value: string;
+  fieldName: string;
+  onEdit: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const lp = useLongPress(() => setEditing(true));
+  return (
+    <>
+      <div className="qc-cell font-mono" {...lp} title="Long-press to edit">
+        {value || <span className="text-muted-foreground/40">—</span>}
+      </div>
+      <EditCellDialog
+        open={editing}
+        fieldName={fieldName}
+        value={value}
+        isNumeric={false}
+        onSave={(v) => {
+          onEdit(v);
+          setEditing(false);
+        }}
+        onClose={() => setEditing(false)}
       />
     </>
   );
 }
 
-// ─── QC Table ──────────────────────────────────────────────────────────────────
+// ─── Row component ─────────────────────────────────────────────────────────────────
+
+interface QCRowProps {
+  row: QCRowData;
+  rowIndex: number;
+  readOnly: boolean;
+  onEdit: (field: keyof QCRowData, value: string) => void;
+  onCameraClick?: () => void;
+  onPhotoView?: (dataUrl: string, timestamp?: number) => void;
+}
+
+function QCRow({
+  row,
+  rowIndex,
+  readOnly,
+  onEdit,
+  onCameraClick,
+  onPhotoView,
+}: QCRowProps) {
+  const colorCls = getRowColorClass(row);
+  return (
+    <tr className={`border-b border-border/20 ${colorCls}`}>
+      {/* Operation — sticky col 1 */}
+      <td className="sticky-col-1 border-r border-border/30 px-1 py-0">
+        {readOnly ? (
+          <span className="block px-1 py-1 font-mono text-xs">
+            {row.operation || "—"}
+          </span>
+        ) : (
+          <StickyCell
+            value={row.operation}
+            fieldName="Operation"
+            onEdit={(v) => onEdit("operation", v)}
+          />
+        )}
+      </td>
+
+      {/* Operator — sticky col 2 */}
+      <td className="sticky-col-2 border-r border-border/30 px-1 py-0">
+        {readOnly ? (
+          <span className="block px-1 py-1 font-mono text-xs">
+            {row.operatorName || "—"}
+          </span>
+        ) : (
+          <StickyCell
+            value={row.operatorName}
+            fieldName="Operator Name"
+            onEdit={(v) => onEdit("operatorName", v)}
+          />
+        )}
+      </td>
+
+      {/* Hour columns */}
+      {HOUR_FIELDS.map((field, hi) =>
+        readOnly ? (
+          <td
+            key={field}
+            className="border-r border-border/30 text-center px-1 py-1 font-mono"
+          >
+            {(row[field] as string) || "—"}
+          </td>
+        ) : (
+          <QCCell
+            key={field}
+            value={row[field] as string}
+            fieldName={`${HOUR_LABELS[hi]} Defects`}
+            isNumeric
+            onEdit={(v) => onEdit(field, v)}
+          />
+        ),
+      )}
+
+      {/* Text fields */}
+      {TEXT_FIELDS.map(({ key, label }) =>
+        readOnly ? (
+          <td
+            key={key}
+            className="border-r border-border/30 px-1 py-1 max-w-[110px]"
+          >
+            <span className="block truncate font-mono">
+              {(row[key] as string) || "—"}
+            </span>
+          </td>
+        ) : (
+          <QCCell
+            key={key}
+            value={row[key] as string}
+            fieldName={label}
+            isNumeric={key === "noOfDefects"}
+            onEdit={(v) => onEdit(key, v)}
+          />
+        ),
+      )}
+
+      {/* Photo column */}
+      <td className="text-center px-1 py-0">
+        {row.photoDataUrl ? (
+          <button
+            type="button"
+            onClick={() => onPhotoView?.(row.photoDataUrl!, row.photoTimestamp)}
+            className="p-1 rounded hover:bg-accent/40 transition-colors"
+            title="View capture"
+            data-ocid={`photo.item.${rowIndex + 1}`}
+          >
+            <img
+              src={row.photoDataUrl}
+              alt={`Row ${rowIndex + 1} defect capture`}
+              className="w-8 h-8 object-cover rounded"
+            />
+          </button>
+        ) : !readOnly && onCameraClick ? (
+          <button
+            type="button"
+            onClick={onCameraClick}
+            className="p-1 rounded hover:bg-accent/40 transition-colors text-muted-foreground hover:text-foreground"
+            title="Take capture"
+            data-ocid={`camera.item.${rowIndex + 1}`}
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+        ) : (
+          <span className="text-muted-foreground/30 text-xs">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── QC Table ─────────────────────────────────────────────────────────────────
 
 export interface QCTableProps {
   rows: QCRowData[];
   readOnly?: boolean;
-  onChange?: (rowIndex: number, field: keyof QCRowData, value: string) => void;
+  onCellChange?: (
+    rowIndex: number,
+    field: keyof QCRowData,
+    value: string,
+  ) => void;
   onCameraClick?: (rowIndex: number) => void;
 }
 
 export function QCTable({
   rows,
   readOnly = false,
-  onChange,
+  onCellChange,
   onCameraClick,
 }: QCTableProps) {
-  const hourCols: { key: keyof QCRowData; label: string }[] = [
-    { key: "hr1", label: "1st Hr" },
-    { key: "hr2", label: "2nd Hr" },
-    { key: "hr3", label: "3rd Hr" },
-    { key: "hr4", label: "4th Hr" },
-    { key: "hr5", label: "5th Hr" },
-    { key: "hr6", label: "6th Hr" },
-    { key: "hr7", label: "7th Hr" },
-    { key: "hr8", label: "8th Hr" },
-  ];
+  const [photoViewer, setPhotoViewer] = useState<{
+    dataUrl: string;
+    timestamp?: number;
+  } | null>(null);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="qc-table w-full border-collapse text-sm">
+    <div
+      className="overflow-x-auto"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      <table className="text-xs border-collapse" style={{ minWidth: 900 }}>
         <thead>
-          <tr className="bg-card/80 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
-            <th className="px-2 py-2 text-center border-r border-border/40 min-w-[2rem] sticky left-0 bg-card/95 z-10">
-              #
-            </th>
-            <th className="px-2 py-2 text-left border-r border-border/40 min-w-[7rem]">
+          <tr className="bg-muted/80">
+            <th
+              className="sticky-col-1 text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap"
+              style={{ minWidth: 80 }}
+            >
               Operation
             </th>
-            <th className="px-2 py-2 text-left border-r border-border/40 min-w-[8rem]">
+            <th
+              className="sticky-col-2 text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap"
+              style={{ minWidth: 110 }}
+            >
               Operator
             </th>
-            {hourCols.map((col) => (
+            {HOUR_LABELS.map((label) => (
               <th
-                key={col.key}
-                className="px-2 py-2 text-center border-r border-border/40 min-w-[3.5rem]"
+                key={label}
+                className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap text-center"
+                style={{ minWidth: 54 }}
               >
-                {col.label}
+                {label}
               </th>
             ))}
-            <th className="px-2 py-2 text-left border-r border-border/40 min-w-[7rem]">
-              Defect Type
+            <th
+              className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap"
+              style={{ minWidth: 80 }}
+            >
+              Defect
             </th>
-            <th className="px-2 py-2 text-center border-r border-border/40 min-w-[3.5rem]">
-              # Defects
+            <th
+              className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap text-center"
+              style={{ minWidth: 52 }}
+            >
+              No.
             </th>
-            <th className="px-2 py-2 text-left border-r border-border/40 min-w-[8rem]">
+            <th
+              className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide border-r border-border/30 whitespace-nowrap"
+              style={{ minWidth: 110 }}
+            >
               Action Taken
             </th>
-            {!readOnly && (
-              <th className="px-2 py-2 text-center min-w-[2.5rem] sticky right-0 bg-card/95 z-10">
-                📷
-              </th>
-            )}
+            <th
+              className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap text-center"
+              style={{ minWidth: 50 }}
+            >
+              Photo
+            </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => {
-            const colorClass = getRowColor(row);
-            const markerIndex = i + 1;
-            return (
-              <tr
-                key={`qc-row-${i}-${row.operatorName}`}
-                data-ocid={`report.row.item.${markerIndex}`}
-                className={`border-b border-border/30 transition-colors ${colorClass}`}
-              >
-                {/* # */}
-                <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-medium border-r border-border/40 sticky left-0 bg-inherit z-10">
-                  {i + 1}
-                </td>
-
-                {/* Operation */}
-                <Cell
-                  value={row.operation}
-                  placeholder="Operation"
-                  onEdit={(v) => onChange?.(i, "operation", v)}
-                  rowIndex={i}
-                  colKey="operation"
-                />
-
-                {/* Operator Name */}
-                <Cell
-                  value={row.operatorName}
-                  placeholder={`Operator ${i + 1}`}
-                  onEdit={(v) => onChange?.(i, "operatorName", v)}
-                  rowIndex={i}
-                  colKey="operatorName"
-                />
-
-                {/* Hour columns */}
-                {hourCols.map((col) => (
-                  <Cell
-                    key={col.key}
-                    value={row[col.key] as string}
-                    placeholder="0"
-                    isNumeric
-                    onEdit={(v) => onChange?.(i, col.key, v)}
-                    rowIndex={i}
-                    colKey={col.key}
-                  />
-                ))}
-
-                {/* Defect Type */}
-                <Cell
-                  value={row.defectType}
-                  placeholder="Type"
-                  onEdit={(v) => onChange?.(i, "defectType", v)}
-                  rowIndex={i}
-                  colKey="defectType"
-                />
-
-                {/* No. of Defects */}
-                <Cell
-                  value={row.noOfDefects}
-                  placeholder="0"
-                  isNumeric
-                  onEdit={(v) => onChange?.(i, "noOfDefects", v)}
-                  rowIndex={i}
-                  colKey="noOfDefects"
-                />
-
-                {/* Action Taken */}
-                <Cell
-                  value={row.actionTaken}
-                  placeholder="Action"
-                  onEdit={(v) => onChange?.(i, "actionTaken", v)}
-                  rowIndex={i}
-                  colKey="actionTaken"
-                />
-
-                {/* Camera button */}
-                {!readOnly && (
-                  <td className="px-1 py-1 text-center sticky right-0 bg-inherit z-10">
-                    <button
-                      type="button"
-                      data-ocid={`report.row.camera_button.${markerIndex}`}
-                      onClick={() => onCameraClick?.(i)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md bg-accent/60 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors mx-auto"
-                      aria-label={`Camera for row ${i + 1}`}
-                    >
-                      <Camera className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
+          {rows.map((row, i) => (
+            <QCRow
+              // biome-ignore lint/suspicious/noArrayIndexKey: row order is stable by design
+              key={i}
+              row={row}
+              rowIndex={i}
+              readOnly={readOnly}
+              onEdit={(field, value) => onCellChange?.(i, field, value)}
+              onCameraClick={onCameraClick ? () => onCameraClick(i) : undefined}
+              onPhotoView={(dataUrl, ts) =>
+                setPhotoViewer({ dataUrl, timestamp: ts })
+              }
+            />
+          ))}
         </tbody>
       </table>
+
+      {photoViewer && (
+        <PhotoViewer
+          open
+          dataUrl={photoViewer.dataUrl}
+          timestamp={photoViewer.timestamp}
+          onClose={() => setPhotoViewer(null)}
+        />
+      )}
     </div>
   );
 }

@@ -89,25 +89,381 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface backendInterface {
-    greet(name: string): Promise<string>;
+export interface PhotoData {
+    imageData: string;
+    timestamp: bigint;
 }
+export interface QCReport {
+    id: bigint;
+    title: string;
+    date: bigint;
+    submittedTimestamp: bigint;
+    operatorRows: Array<OperatorRow>;
+}
+export interface OperatorRow {
+    defectType: string;
+    operationName: string;
+    defectCounts: Array<bigint>;
+    operatorName: string;
+    numberOfDefects: bigint;
+    photo?: PhotoData;
+    actionTaken: string;
+}
+export interface UserProfile {
+    name: string;
+}
+export enum UserRole {
+    admin = "admin",
+    user = "user",
+    guest = "guest"
+}
+export interface backendInterface {
+    _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearDraftReport(): Promise<void>;
+    deleteReport(id: bigint): Promise<void>;
+    getAllReports(): Promise<Array<QCReport>>;
+    getCallerUserProfile(): Promise<UserProfile | null>;
+    getCallerUserRole(): Promise<UserRole>;
+    getDraftReport(): Promise<QCReport | null>;
+    getReportById(id: bigint): Promise<QCReport | null>;
+    getUserProfile(user: Principal): Promise<UserProfile | null>;
+    isCallerAdmin(): Promise<boolean>;
+    saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveDraftReport(title: string, date: bigint, operatorRows: Array<OperatorRow>): Promise<void>;
+    saveReport(title: string, date: bigint, operatorRows: Array<OperatorRow>): Promise<bigint>;
+}
+import type { OperatorRow as _OperatorRow, PhotoData as _PhotoData, QCReport as _QCReport, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
-    async greet(arg0: string): Promise<string> {
+    async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.greet(arg0);
+                const result = await this.actor._initializeAccessControlWithSecret(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.greet(arg0);
+            const result = await this.actor._initializeAccessControlWithSecret(arg0);
             return result;
         }
     }
+    async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async clearDraftReport(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.clearDraftReport();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.clearDraftReport();
+            return result;
+        }
+    }
+    async deleteReport(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteReport(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteReport(arg0);
+            return result;
+        }
+    }
+    async getAllReports(): Promise<Array<QCReport>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllReports();
+                return from_candid_vec_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllReports();
+            return from_candid_vec_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getCallerUserProfile(): Promise<UserProfile | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCallerUserProfile();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCallerUserProfile();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getCallerUserRole(): Promise<UserRole> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCallerUserRole();
+                return from_candid_UserRole_n11(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCallerUserRole();
+            return from_candid_UserRole_n11(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getDraftReport(): Promise<QCReport | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getDraftReport();
+                return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getDraftReport();
+            return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getReportById(arg0: bigint): Promise<QCReport | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getReportById(arg0);
+                return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getReportById(arg0);
+            return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserProfile(arg0);
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUserProfile(arg0);
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async isCallerAdmin(): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isCallerAdmin();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.isCallerAdmin();
+            return result;
+        }
+    }
+    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveCallerUserProfile(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveCallerUserProfile(arg0);
+            return result;
+        }
+    }
+    async saveDraftReport(arg0: string, arg1: bigint, arg2: Array<OperatorRow>): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveDraftReport(arg0, arg1, to_candid_vec_n14(this._uploadFile, this._downloadFile, arg2));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveDraftReport(arg0, arg1, to_candid_vec_n14(this._uploadFile, this._downloadFile, arg2));
+            return result;
+        }
+    }
+    async saveReport(arg0: string, arg1: bigint, arg2: Array<OperatorRow>): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveReport(arg0, arg1, to_candid_vec_n14(this._uploadFile, this._downloadFile, arg2));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveReport(arg0, arg1, to_candid_vec_n14(this._uploadFile, this._downloadFile, arg2));
+            return result;
+        }
+    }
+}
+function from_candid_OperatorRow_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OperatorRow): OperatorRow {
+    return from_candid_record_n8(_uploadFile, _downloadFile, value);
+}
+function from_candid_QCReport_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _QCReport): QCReport {
+    return from_candid_record_n5(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserRole_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n12(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_QCReport]): QCReport | null {
+    return value.length === 0 ? null : from_candid_QCReport_n4(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_opt_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_PhotoData]): PhotoData | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    id: bigint;
+    title: string;
+    date: bigint;
+    submittedTimestamp: bigint;
+    operatorRows: Array<_OperatorRow>;
+}): {
+    id: bigint;
+    title: string;
+    date: bigint;
+    submittedTimestamp: bigint;
+    operatorRows: Array<OperatorRow>;
+} {
+    return {
+        id: value.id,
+        title: value.title,
+        date: value.date,
+        submittedTimestamp: value.submittedTimestamp,
+        operatorRows: from_candid_vec_n6(_uploadFile, _downloadFile, value.operatorRows)
+    };
+}
+function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    defectType: string;
+    operationName: string;
+    defectCounts: Array<bigint>;
+    operatorName: string;
+    numberOfDefects: bigint;
+    photo: [] | [_PhotoData];
+    actionTaken: string;
+}): {
+    defectType: string;
+    operationName: string;
+    defectCounts: Array<bigint>;
+    operatorName: string;
+    numberOfDefects: bigint;
+    photo?: PhotoData;
+    actionTaken: string;
+} {
+    return {
+        defectType: value.defectType,
+        operationName: value.operationName,
+        defectCounts: value.defectCounts,
+        operatorName: value.operatorName,
+        numberOfDefects: value.numberOfDefects,
+        photo: record_opt_to_undefined(from_candid_opt_n9(_uploadFile, _downloadFile, value.photo)),
+        actionTaken: value.actionTaken
+    };
+}
+function from_candid_variant_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    admin: null;
+} | {
+    user: null;
+} | {
+    guest: null;
+}): UserRole {
+    return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
+}
+function from_candid_vec_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_QCReport>): Array<QCReport> {
+    return value.map((x)=>from_candid_QCReport_n4(_uploadFile, _downloadFile, x));
+}
+function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_OperatorRow>): Array<OperatorRow> {
+    return value.map((x)=>from_candid_OperatorRow_n7(_uploadFile, _downloadFile, x));
+}
+function to_candid_OperatorRow_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OperatorRow): _OperatorRow {
+    return to_candid_record_n16(_uploadFile, _downloadFile, value);
+}
+function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
+    return to_candid_variant_n2(_uploadFile, _downloadFile, value);
+}
+function to_candid_record_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    defectType: string;
+    operationName: string;
+    defectCounts: Array<bigint>;
+    operatorName: string;
+    numberOfDefects: bigint;
+    photo?: PhotoData;
+    actionTaken: string;
+}): {
+    defectType: string;
+    operationName: string;
+    defectCounts: Array<bigint>;
+    operatorName: string;
+    numberOfDefects: bigint;
+    photo: [] | [_PhotoData];
+    actionTaken: string;
+} {
+    return {
+        defectType: value.defectType,
+        operationName: value.operationName,
+        defectCounts: value.defectCounts,
+        operatorName: value.operatorName,
+        numberOfDefects: value.numberOfDefects,
+        photo: value.photo ? candid_some(value.photo) : candid_none(),
+        actionTaken: value.actionTaken
+    };
+}
+function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
+    admin: null;
+} | {
+    user: null;
+} | {
+    guest: null;
+} {
+    return value == UserRole.admin ? {
+        admin: null
+    } : value == UserRole.user ? {
+        user: null
+    } : value == UserRole.guest ? {
+        guest: null
+    } : value;
+}
+function to_candid_vec_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<OperatorRow>): Array<_OperatorRow> {
+    return value.map((x)=>to_candid_OperatorRow_n15(_uploadFile, _downloadFile, x));
 }
 export interface CreateActorOptions {
     agent?: Agent;

@@ -1,0 +1,24 @@
+{
+  "name": "Garment QC Report",
+  "short_name": "QC Report",
+  "description": "Garment quality control inspection reports with Excel export",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#cc8a1a",
+  "icons": [
+    {
+      "src": "/assets/generated/app-icon-192.dim_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/generated/app-icon.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
